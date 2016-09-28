@@ -3,6 +3,8 @@
 #include <SPI.h>
 #include <SD.h>
 
+const int chipSelect = 10;
+
 #define DS3231_I2C_ADDRESS 0x68
 
 unsigned long PulseStartTime1;   // Saves Start of pulse in us
@@ -23,7 +25,8 @@ File myFile;
 void setup()
 {
 Wire.begin();
-Serial.begin(115200);            // OPENS SERIAL PORT SETS DATA TO 115200 bps
+Serial.begin(115200);  // OPENS SERIAL PORT SETS DATA TO 115200 bps
+delay(500);
 attachInterrupt(0, RPMPulse, RISING); // Attaches interrupt to Digital Pin 2 = int0
 attachInterrupt(1, PulseCounter, RISING); // Attaches interrupt to Digital Pin 3 = int1
   // set the initial time here:
@@ -37,7 +40,7 @@ attachInterrupt(1, PulseCounter, RISING); // Attaches interrupt to Digital Pin 3
   
   Serial.print("Initializing SD card...");
 
-  if (!SD.begin(4)) {
+  if (!SD.begin(chipSelect)) {
     Serial.println("initialization failed!");
     return;
   }
@@ -54,20 +57,6 @@ attachInterrupt(1, PulseCounter, RISING); // Attaches interrupt to Digital Pin 3
     myFile.close();  // close the file:
     Serial.println("done.");
   } else Serial.println("error opening log.csv");  // if the file didn't open, print an error:
-  
-  myFile = SD.open("log.csv");  // re-open the file for reading:
-  if (myFile) 
-  {
-    Serial.print("Reading log.csv: ");
-    // read from the file until there's nothing else in it:
-    while (myFile.available()) 
-    {
-      Serial.println("file ok");
-    }
-    // close the file:
-    myFile.close();
-  } 
-  else Serial.println("error opening log.csv");  // if the file didn't open, print an error:
 }
 
 byte decToBcd(byte val)
@@ -191,6 +180,7 @@ void displayTime()
     Serial.println("Sunday");
     break;
   }
+  Serial.println("");
 }
 
 void RPMPulse()
@@ -248,7 +238,7 @@ void readAnalog()
   {
     int sensor = analogRead(analogPin);
     dataString += String(sensor);
-    if (analogPin < 3) 
+    if (analogPin < 5) 
     {
       dataString += ", ";
     }
@@ -277,6 +267,8 @@ void loop()
   myFile.print(PULSES);
   myFile.print(", ");
   myFile.print(dataString);
+  myFile.print(", ");
+  myFile.println();
   myFile.close();
 
   displayTime(); // display the real-time clock data on the Serial Monitor
