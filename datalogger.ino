@@ -4,6 +4,8 @@
 #include <SD.h>
 
 const int chipSelect = 10;
+const int buttonPin = 9;
+const int microsddetect = 8;
 
 #define DS3231_I2C_ADDRESS 0x68
 
@@ -20,10 +22,19 @@ boolean Cycle2 = false;
 String datetimeString;
 String dataString;
 
+int currbuttonState = 1;
+int prevbuttonState = 1;
+int logMode = 0;
+int reboot = 0;
+
 File myFile;
 
 void setup()
 {
+pinMode(buttonPin, INPUT);
+digitalWrite(buttonPin, HIGH);
+pinMode(microsddetect, INPUT);
+digitalWrite(microsddetect, HIGH);
 Wire.begin();
 Serial.begin(115200);  // OPENS SERIAL PORT SETS DATA TO 115200 bps
 delay(500);
@@ -37,7 +48,8 @@ attachInterrupt(1, PulseCounter, RISING); // Attaches interrupt to Digital Pin 3
   {
     ; // wait for serial port to connect. Needed for native USB port only
   }
-  
+  if(digitalRead(microsddetect) == 0)
+  {
   Serial.print("Initializing SD card...");
 
   if (!SD.begin(chipSelect)) {
@@ -45,18 +57,29 @@ attachInterrupt(1, PulseCounter, RISING); // Attaches interrupt to Digital Pin 3
     return;
   }
   Serial.println("initialization done.");
-
+  }
+ else {
+ Serial.println("Insert microsd card and reset");
+ delay(30000);
+ return;
+ }
+ 
+ 
   // open the file. note that only one file can be open at a time,
   // so you have to close this one before opening another.
-  myFile = SD.open("log.csv", FILE_WRITE);
+  myFile = SD.open("datalog.csv", FILE_WRITE);
 
   if (myFile)  // if the file opened okay, write to it:
   {
-    Serial.print("Writing to log.csv...");
+    Serial.print("Writing to datalog.csv...");
     myFile.println("Datalog file");
     myFile.close();  // close the file:
     Serial.println("done.");
-  } else Serial.println("error opening log.csv");  // if the file didn't open, print an error:
+  } 
+  else 
+  {
+  Serial.println("error opening datalog.csv"); // if the file didn't open, print an error:
+  }
 }
 
 byte decToBcd(byte val)
@@ -255,28 +278,63 @@ void readAnalog()
 }
 void loop()
 {
-  myFile = SD.open("log.csv", FILE_WRITE);
-
-  readAnalog(); // read four sensors and append to the string
-  readTime(); // read date and time and append to the string
+  if (reboot == 1) 
+  {
+    Serial.println("Reset datalogger!");
+    delay(30000);
+    return;  
+  }
   
-  myFile.print(datetimeString);
-  myFile.print(", ");
-  myFile.print(RPM);
-  myFile.print(", ");
-  myFile.print(PULSES);
-  myFile.print(", ");
-  myFile.print(dataString);
-  myFile.print(", ");
-  myFile.println();
-  myFile.close();
+  currbuttonState = digitalRead(buttonPin);
+  
+  if(currbuttonState != prevbuttonState && digitalRead(microsddetect) == 0)
+  {
+    if (currbuttonState == HIGH)
+     {
+      if (logMode == 0) {          // light is off
+          logMode = 1;               // turn light on!
+        } else {
+          logMode = 0;
+        }          
+     }
+  }
+  prevbuttonState = currbuttonState;
 
-  displayTime(); // display the real-time clock data on the Serial Monitor
-  Serial.print("RPM = ");      // Output RPM for debug
-  Serial.println(RPM);
-  Serial.print("PULSES = ");      // Output RPM for debug
-  Serial.println(PULSES);
-  Serial.print("Analogvalues = ");      
-  Serial.println(dataString); 
-  delay(100);                   // delay for debug output
+  if (logMode == 1){
+      myFile = SD.open("datalog.csv", FILE_WRITE);
+
+      readAnalog(); // read four sensors and append to the string
+      readTime(); // read date and time and append to the string
+  
+      myFile.print(datetimeString);
+      myFile.print(", ");
+      myFile.print(RPM);
+      myFile.print(", ");
+      myFile.print(PULSES);
+      myFile.print(", ");
+      myFile.print(dataString);
+      myFile.print(", ");
+      myFile.println();
+      myFile.close();
+
+      displayTime(); // display the real-time clock data on the Serial Monitor
+      Serial.print("RPM = ");      // Output RPM for debug
+      Serial.println(RPM);
+      Serial.print("PULSES = ");      // Output RPM for debug
+      Serial.println(PULSES);
+      Serial.print("Analogvalues = ");      
+      Serial.println(dataString); 
+      delay(100);       // delay for debug output
+  }
+  
+  if(logMode == 0 && digitalRead(microsddetect) == 0){
+    Serial.println("Ready to log, press button");
+    delay(500);
+    }
+    if (digitalRead(microsddetect) == 1) {
+    reboot = 1; 
+    Serial.println("Insert microsd card and reset");
+    delay(30000);
+    }
 }
+
